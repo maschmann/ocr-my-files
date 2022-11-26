@@ -1,0 +1,290 @@
+#!/bin/bash
+
+inputDir="processed"
+outputDir="done"
+
+defaultType="unknown"
+declare -a types
+declare -A months
+
+# specific types
+# has to be an indexed array to keep order, instead of a hashmap 
+
+types=(
+    "lohnart==gehalt"
+    "meldebescheinigung==sozialversicherung"
+    "sozialversicherung==sozialversicherung"
+    "abfallgeb==abfallgebühren"
+    "grundsteuer==grundsteuer"
+    "wasser==wasser"
+    "hauptuntersuchung==hauptuntersuchung"
+    "lohnsteuerbescheinigung==lohnsteuer"
+    "bausparvertrag==kontoauszug-bausparvertrag"
+    "vorfinanzierungskredit==kontoauszug-vorfinanzierungskredit"
+    "jahreskontoauszug==kontoauszug"
+    "schornsteinfeger==kaminfeger"
+    "kontoauszug==kontoauszug"
+    "p718239363==krankenkasse"
+    "haftpflicht\-versicherung==haftpflichtversicherung"
+    "hausratversicherung==hausratversicherung"
+    "r\+v\-privatpolice==gebäudeversicherung"
+    "rechtsschutzversicherung==rechtsschutzversicherung"
+    "renteninformation==renteninformation"
+    "apcoa==parken"
+    "kraftfahrtversicherung==kfz-versicherung"
+    "rechnung==rechnung"
+    "lieferschein==rechnung"
+    "versicherung==versicherung"
+    "zeugnis==zeugnis"
+    "gehalt==gehalt"
+)
+
+months["Januar"]="01"
+months["Februar"]="02"
+months["März"]="03"
+months["April"]="04"
+months["Mai"]="05"
+months["Juni"]="06"
+months["Juli"]="07"
+months["August"]="08"
+months["September"]="09"
+months["Oktober"]="10"
+months["November"]="11"
+months["Dezember"]="12"
+
+# do a Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember for regex
+monthmap=$( IFS=$'|'; echo "${!months[*]}" )
+
+silent=0
+verbose=0
+test=0
+formatted=""
+touchTime=""
+
+helpText=$(cat <<DELIMITER
+usage: <command> -i <input dir> -o <output dir>
+------------------------------------------------------
+example: ./rename-pdf -i ${inputDir} -o ${outputDir} -s
+------------------------------------------------------
+available options:
+------------------------------------------------------
+  -h                 show help
+  -i <input dir>     name of consumer to start (default: ${inputDir})
+  -o <output dir>    env to deploy (default: ${outputDir})
+  -v                 some verbosity
+  -t                 test mode (does not move files, best used with verbosity)
+DELIMITER
+)
+
+# functions
+# --------------------------------------------------------------------------- #
+
+function checkArgDefault()
+{
+  if [ ! -z "$1" ]; then
+    echo "$1"
+  else
+    echo "$2"
+  fi
+}
+
+# Function for error messages
+function errorecho() {
+    cat <<< "$@" 1>&2;
+}
+
+function help()
+{
+    description "${helpText}"
+}
+
+function description()
+{
+    echo "------------------------------------------------------"
+    for i in "$@"
+    do
+        echo "${i}"
+    done
+    echo "------------------------------------------------------"
+}
+
+function move_file() {
+    createFile="${outputDir}/${filename}"
+
+    if [ -f "$createFile" ]; then
+        # If the file already exist in the output directory, skip it.
+        if [ 1 == "${verbose}" ]; then echo "File ${createFile} already exists, skipping..."; fi
+        continue
+    else
+        if [ 1 == "${test}" ]; then 
+            cp "$file" "${createFile}"
+        else 
+            mv "$file" "${createFile}"
+        fi
+        # change timestamp to extracted date
+        touch -d "$touchTime" "${createFile}"
+    fi
+}
+
+function rename_files() {
+    files="${inputDir}/*.pdf"
+
+    for file in $files; do
+        if [ -f "${file}" ]; then
+            if [ 1 == "${verbose}" ]; then echo "processing: ${file}"; fi
+
+            extract_date
+            extract_type
+            
+            # create a additional unix timestamp to not skip too many files
+            timestamp=$(date +"%s")
+            filename="${formatted}-${type}-${timestamp}.pdf"
+            if [ 1 == "${verbose}" ]; then echo "File will be moved to ${filename}"; fi
+            move_file
+        fi
+    done
+}
+
+function extract_date() {
+    if [ 1 == "${verbose}" ]; then echo "trying dd. <month> YYYY"; fi
+    # dd. <monthlong> YYYY
+    result=$(pdfgrep -hiPo -m 1 --color=never "(([0-9]{1,2})\.\s{0,1}($monthmap)\s{0,1}([0-9]{2,4}))" "${file}")
+
+    if [ "$result" != "" ]; then
+        if [ 1 == "${verbose}" ]; then echo "result: ${result}"; fi
+        # we need to get the groups from the result string
+        pattern="^([0-9]{1,2})\.\s{0,1}($monthmap)\s{0,1}([0-9]{2,4})$"
+
+        shopt -s nocasematch
+        [[ "$result" =~ $pattern ]] # regex the string
+
+        month=${months[${BASH_REMATCH[2]}]}
+        day=$(printf "%02d" ${BASH_REMATCH[1]})
+        result="${BASH_REMATCH[3]}${month}${day}"
+        format="%Y%m%d"
+    fi
+
+
+    if [ "$result" == "" ]; then
+        if [ 1 == "${verbose}" ]; then echo "trying <month> YYYY"; fi
+        # <monthlong> YYYY
+        result=$(pdfgrep -hiPo -m 1 --color=never "(($monthmap)\s{0,1}([0-9]{2,4}))" "${file}")
+        
+        if [ "$result" != "" ]; then
+            if [ 1 == "${verbose}" ]; then echo "result: ${result}"; fi
+            # we need to get the groups from the result string
+            pattern="^($monthmap)\s{0,1}([0-9]{2,4})$"
+
+            shopt -s nocasematch
+            [[ "$result" =~ $pattern ]] # regex the string
+
+            month=${months[${BASH_REMATCH[1]}]}
+            # add 01, will be removed by formatter
+            result="${BASH_REMATCH[2]}${month}01"
+        fi
+        format="%Y%m%d"
+    fi
+
+    if [ "$result" == "" ]; then
+        if [ 1 == "${verbose}" ]; then echo "trying dd./mm./YYYY"; fi
+        # dd.mm.YYYY, dd/mm/YYYY
+        result=$(pdfgrep -hiPo -m 1 --color=never '(0[1-9]|1[0-9]|2[0-9]|3[0-1])[\/\.](0[1-9]|1[0-2])[\/\.](19|20)\d\d' "${file}")
+
+        if [ 1 == "${verbose}" ]; then echo "result: ${result}"; fi
+        if [ "$result" != "" ]; then
+            # determine spacer
+            if [[ $result == *"."* ]]; then spacer="."; else spacer="/"; fi
+
+            IFS="$spacer" read -r -a extract <<< "$result"
+            result="${extract[2]}${extract[1]}${extract[0]}"
+        fi
+        format="%Y%m%d"
+    fi
+
+    if [ "$result" == "" ]; then
+        # check US/UK formats, then German long, German short
+        # YYYY-mm-dd, YYYY/mm/dd, YYYY.mm.dd
+        # insensitive, PRCE compatible, max matches = 1
+        if [ 1 == "${verbose}" ]; then echo "last resort: YYYY-./mm-./dd"; echo "result: ${result}"; fi
+        result=$(pdfgrep -hiPo -m 1 --color=never '(19|20)\d\d[\-\/\.]{0,1}(0[1-9]|1[0-2])[\-\/\.]{0,1}(0[1-9]|1[0-9]|2[0-9]|3[0-1])' "${file}")
+        format="%Y%m%d"
+    fi
+
+    # in case result is empty, use today
+    if [ "" == "${result}" ]; then
+        formatted=$(date +"%Y%m%d")
+        touchTime=$(date +"%Y%m%d")
+        if [ 1 == "${verbose}" ]; then echo "found no date, will use: ${formatted}"; fi
+    else
+        if [ 1 == "${verbose}" ]; then echo "found date: ${result}, formatting with ${format}"; fi
+        formatted=$(date -d"$result" +"$format")
+        touchTime=$(date -d"$result" +"%Y%m%d")
+    fi
+
+    unset result
+}
+
+function extract_type() {
+    type="$defaultType"
+
+    for composite_key in ${types[@]}; do
+
+        key=${composite_key%==*}
+        value=${composite_key#*==}
+
+        if [ 1 == "${verbose}" ]; then echo "trying keyword: ${key}"; fi
+        matches=$(pdfgrep -hiPo -m 1 --color=never "($key)" "${file}")
+
+        # if we've got at least one match. Last match counts
+        if [ "$matches" != "" ]; then
+            type=${value}
+            if [ 1 == "${verbose}" ]; then echo "found keyword ${key}, setting ${value}"; fi
+            # since we found something, exit the loop
+            break
+        fi
+    done
+
+    if [ 1 == "${verbose}" ]; then echo "use type: ${type}"; fi
+}
+
+# workfllow 
+# --------------------------------------------------------------------------- #
+
+# read optargs
+if [ $# -gt 0 ]
+then
+  while getopts "hi:o:vt" OPTION
+  do
+    case $OPTION in
+      h)
+        help
+        exit 1
+        ;;
+      i)
+        inputDir=$(checkArgDefault ${OPTARG} ${inputDir})
+        ;;
+      o)
+        outputDir=$(checkArgDefault ${OPTARG} ${outputDir})
+        ;;
+      v)
+        verbose=1
+        ;;
+      t)
+        test=1
+        ;;
+      ?)
+        help # wont you pleeaaaaaaase help me
+        exit 1
+        ;;
+    esac
+  done
+fi
+
+if ! hash pdfgrep 2>/dev/null;
+then
+    errorecho "ERROR: pdfgrep is not available!"
+    errorecho "Is pdfgrep installed?"
+    exit 1
+fi
+
+rename_files

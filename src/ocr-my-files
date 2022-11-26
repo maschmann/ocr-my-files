@@ -1,0 +1,271 @@
+#!/bin/bash
+
+# Bash script for adding a text layer to PDF files and converting images in PDFs (with OCR).
+# Requirements:
+#     - OCRmyPDF: https://github.com/jbarlow83/OCRmyPDF
+#         Install instructions: https://ocrmypdf.readthedocs.io/en/latest/installation.html
+#    - Tesseract: https://github.com/tesseract-ocr/
+#        This is installed with OCRmyPDF automatically
+#    - Tesseract language files
+#        e.g. "apt-get install tesseract-ocr-deu" for German language
+# Usage:
+#    - OCRmyFiles.sh (no parameter): using default directories for input/output
+#    - OCRmyFiles.sh <inputDir> <outputDir>: using specified directories for input/output
+#
+# Remarks:
+#     - After OCR, all files from the input directory are deleted. If you want to keep the input files, just comment out the call 
+of the function 'cleanup_inputDir' at the end of the script.
+
+# General command line arguments for OCRmyPDF.
+# Modify these to fit your needs.
+# More information about command line arguments for OCRmyPDF: https://ocrmypdf.readthedocs.io/en/latest/cookbook.html
+# -l deu+eng: Gives a hint for OCRmyPDF which languages are contained in the PDF (requires the corresponding tesseract language fi
+les to be installed)
+# --output-type pdf: Creates a PDF/A as output
+ocrmypdfCmdArgs="-l deu+eng --output-type pdfa"
+
+# General command line arguments for tesseract calls (ONLY when converting image files to PDF).
+# Modify these to fit yout needs.
+# -l deu+eng: Gives a hint for tesseract which languages are contained in the image (requires the corresponding tesseract language files to be installed)
+# pdf: Ouput should be PDF/A
+imageConvertCmdArgs="-l deu+eng pdfa"
+
+countPDF=0
+countImage=0
+countCopy=0
+
+inputDir="incoming"
+outputDir="processed"
+backupDir="raw"
+cleanup=0
+backup=0
+silent=0
+
+helpText=$(cat <<DELIMITER
+usage: <command> -i <input dir> -o <output dir>
+------------------------------------------------------
+example: ./ocr-my-files -i ${inputDir} -o ${outputDir} -b ${backupDir} -s
+------------------------------------------------------
+available options:
+------------------------------------------------------
+  -h                 show help
+  -i <input dir>     name of consumer to start (default: ${inputDir})
+  -o <output dir>    env to deploy (default: ${outputDir})
+  -b <backup dir>    enables backup (default: ${backupDir})
+  -c                 clean out input dir instead of moving to backup
+  -s                 Silence! I kill you!
+DELIMITER
+)
+
+# functions
+# --------------------------------------------------------------------------- #
+
+function checkArgDefault()
+{
+  if [ ! -z "$1" ]; then
+    echo "$1"
+  else
+    echo "$2"
+  fi
+}
+
+# Function for error messages
+function errorecho() {
+    if [ 1 == "${silent}" ]; then
+        cat <<< "$@" 1>&2;
+    fi
+}
+
+function help()
+{
+    description "${helpText}"
+}
+
+function description()
+{
+    echo "------------------------------------------------------"
+    for i in "$@"
+    do
+        echo "${i}"
+    done
+    echo "------------------------------------------------------"
+}
+
+# Function to clean up locks
+function cleanup_locks {
+    rm -rf "$lockdir"
+    rm -rf "$runningdir"
+}
+
+# Function to clean up the input directory
+function cleanup_inputDir {
+    if [ 1 == "${backup}" ]; then
+        mv "${inputDir:?}"/* "${backupDir}"
+    fi
+
+    if [ 1 == "${cleanup}" ]; then
+        rm -rf "${inputDir:?}"/*
+    fi
+}
+
+#
+# Function to read the input directory and OCR all contained PDFs resursively
+#
+function ocr_recursive() {
+    for i in "$1"/*;do
+        tmp="${i//"$inputDir"/""}"
+
+        # Skip lock directory
+        if  [ "$i" = "$lockdir" ]; then
+            continue
+        fi
+
+        if [ -d "$i" ]; then
+            mkdir -p "${outputDir}${tmp}"
+            ocr_recursive "$i"
+        elif [ -f "$i" ]; then
+            fileType="$(file -b "$i")"
+
+            if [ -f "${outputDir}${tmp%.*}.pdf" ]; then
+                # If the file already exist in the output directory, skip it.
+                if [ 1 == "${silent}" ]; then echo "File ${outputDir}${tmp%.*}.pdf already exists, skipping..."; fi
+                continue
+            fi
+
+            if [ "${fileType%%,*}" == "PDF document" ]; then
+                # It's a PDF file -> OCR it
+                if [ 1 == "${silent}" ]; then echo "Processing (PDF) $i -> ${outputDir}${tmp}"; fi
+
+                if ! ocrmypdf ${ocrmypdfCmdArgs} "${i}" "${outputDir}${tmp}"
+                then
+                    # Error while processing PDF file, maybe it already contains a text layer -> simply copy to output directory
+                    cp "${i}" "${outputDir}${tmp}"
+                fi
+
+                if [ 1 == "${silent}" ]; then
+                    echo "Done"
+                    echo
+                fi
+                countPDF=$((countPDF + 1))
+            elif  [[ "${fileType}" = *"image data"* ]]; then
+                # It's an image -> convert to PDF and OCR it
+                if [ 1 == "${silent}" ]; then echo "Processing (image) $i -> ${outputDir}${tmp%.*}.pdf"; fi
+                fullpath="${outputDir}${tmp}"
+                tesseract "${i}" "${fullpath%.*}" ${imageConvertCmdArgs}
+
+                if [ 1 == "${silent}" ]; then
+                    echo "Done"
+                    echo
+                fi
+                countImage=$((countImage + 1))
+            else
+                # Other file types -> just copy to output directory.
+                if [ 1 == "${silent}" ]; then echo "Copy $i -> ${outputDir}${tmp}"; fi
+                cp "${i}" "${outputDir}${tmp}"
+                if [ 1 == "${silent}" ]; then
+                    echo "Done"
+                    echo
+                fi
+                countCopy=$((countCopy + 1))
+            fi
+        fi
+    done
+}
+
+# workflow
+# --------------------------------------------------------------------------- #
+
+# read optargs
+if [ $# -gt 0 ]
+then
+  while getopts "hi:o:b:cs" OPTION
+  do
+    case $OPTION in
+      h)
+        help
+        exit 1
+        ;;
+      i)
+        inputDir=$(checkArgDefault ${OPTARG} ${inputDir})
+        ;;
+      o)
+        outputDir=$(checkArgDefault ${OPTARG} ${outputDir})
+        ;;
+      b)
+        backupDir=$(checkArgDefault ${OPTARG} ${backupDir})
+        backup=1
+        ;;
+      c)
+        cleanup=1
+        ;;
+      s)
+        silent=1
+        ;;
+      ?)
+        help # wont you pleeaaaaaaase help me
+        exit 1
+        ;;
+    esac
+  done
+fi
+
+#
+# Check if OCRmyPDF is available
+#
+if ! hash ocrmypdf 2>/dev/null;
+then
+    errorecho "ERROR: OCRmyPDF is not available!"
+    errorecho "Is OCRmyPDF installed?"
+    exit 1
+fi
+
+#
+# Check if directories already exist
+#
+if [ ! -d "${inputDir}" ]
+then
+    errorecho "ERROR: The input directory ${inputDir} does not exist!"
+    exit 1
+fi
+
+if [ ! -d "${outputDir}" ]
+then
+    if [ 1 == "${silent}" ]; then echo "The output directory does not exist -> creating ${outputDir}"; fi
+    mkdir -p "${outputDir}"
+    echo
+fi
+
+#
+# Locking
+#
+# The script should only run in one instance per input directory.
+# So the lock directory is saved in the input directory, not under /var/lock
+# Create a "lock" directory also in output directory to indicate that the script is currently running
+lockdir="${inputDir}/.ocrmyfiles.lock"
+runningdir="${outputDir}/.ocrmyfiles_running.lock"
+
+if mkdir "$lockdir"
+then
+     # Remove lockdir when the script finishes
+     trap cleanup_locks 0
+else
+     errorecho "Script is currently running for input directory ${inputDir}, aborting..."
+     exit 1
+fi
+
+# Create a "lock" directory in output directory to indicate that the script is currently running
+runningdir="${outputDir}/.ocrmyfiles_running.lock"
+mkdir "$runningdir"
+
+shopt -s dotglob
+ocr_recursive "${inputDir}"
+cleanup_inputDir
+shopt -u dotglob
+
+if [ 1 == "${silent}" ]; then
+    echo
+    echo "Finished"
+    echo "PDF files processed: ${countPDF}"
+    echo "Image files processed: ${countImage}"
+    echo "Other files copied: ${countCopy}"
+fi
