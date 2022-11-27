@@ -13,15 +13,13 @@
 #    - OCRmyFiles.sh <inputDir> <outputDir>: using specified directories for input/output
 #
 # Remarks:
-#     - After OCR, all files from the input directory are deleted. If you want to keep the input files, just comment out the call 
-of the function 'cleanup_inputDir' at the end of the script.
+#     - After OCR, all files from the input directory are deleted. If you want to keep the input files, just comment out the call of the function 'cleanup_inputDir' at the end of the script.
 
 # General command line arguments for OCRmyPDF.
 # Modify these to fit your needs.
 # More information about command line arguments for OCRmyPDF: https://ocrmypdf.readthedocs.io/en/latest/cookbook.html
-# -l deu+eng: Gives a hint for OCRmyPDF which languages are contained in the PDF (requires the corresponding tesseract language fi
-les to be installed)
-# --output-type pdf: Creates a PDF/A as output
+# -l deu+eng: Gives a hint for OCRmyPDF which languages are contained in the PDF (requires the corresponding tesseract language files to be installed)
+# --output-type pdf: Creates a PDF/A as output 
 ocrmypdfCmdArgs="-l deu+eng --output-type pdfa"
 
 # General command line arguments for tesseract calls (ONLY when converting image files to PDF).

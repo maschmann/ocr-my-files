@@ -11,14 +11,16 @@ ADD src/ocr-my-files /ocr/ocr-my-files
 ADD src/rename-pdf /ocr/rename-pdf
 
 # Give execution rights on the cron job and files
-RUN chmod 0644 /etc/cron.d/ocr-cron /ocr/ocr-my-files /ocr/rename-pdf
+RUN chmod 0644 /etc/cron.d/ocr-cron 
+RUN chmod +x /ocr/ocr-my-files /ocr/rename-pdf
 
 # Create the log file to be able to run tail
 RUN touch /var/log/cron.log
 
 # Install Cron
 RUN apt-get update
-RUN apt-get -y install cron pdfgrep ocrmypdf
+# Install prerequisite OCR soft + German language
+RUN apt-get -y install cron pdfgrep ocrmypdf tesseract-ocr-deu
 
 # Run the command on container startup
 CMD cron && tail -f /var/log/cron.log
