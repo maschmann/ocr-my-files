@@ -16,11 +16,13 @@ Currently the only configuration you can add, is a folder mount.
 Use following docker command to start with all configured folders.
 
 ```bash
-$ docker run -d \
+$docker pull maschmann/ocr-my-files
+$docker run -d \
   -it \
   --name ocr-my-files \
   --mount type=bind,source="$(pwd)"/incoming,target=/incoming \
   --mount type=bind,source="$(pwd)"/processed,target=/processed \
   --mount type=bind,source="$(pwd)"/done,target=/done \
-  --mount type=bind,source="$(pwd)"/raw,target=/raw
+  --mount type=bind,source="$(pwd)"/raw,target=/raw \
+  maschmann/ocr-my-files
 ```
