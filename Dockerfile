@@ -1,26 +1,27 @@
 FROM ubuntu:latest
 
 # Create directories
-RUN mkdir /incoming && mkdir /processed && mkdir /raw && mkdir /done && mkdir /ocr
+RUN mkdir /incoming /processed /raw /done /ocr /config
 
 # Add crontab file in the cron directory
-ADD src/crontab /etc/cron.d/ocr-cron
+COPY [ "src/ocr-cron", "src/filecheck-cron", "/etc/cron.d/" ]
 
 # Add scripts
-ADD src/ocr-my-files /ocr/ocr-my-files
-ADD src/rename-pdf /ocr/rename-pdf
+COPY [ "src/ocr-my-files", "src/rename-pdf", "src/filecheck", "src/rename_config_default", "/ocr/" ]
 
-# Give execution rights on the cron job and files
-RUN chmod 0644 /etc/cron.d/ocr-cron 
-RUN chmod +x /ocr/ocr-my-files /ocr/rename-pdf
+# Give execution rights the script files
+RUN chmod +x /ocr/ocr-my-files /ocr/rename-pdf /ocr/filecheck
 
 # Create the log file to be able to run tail
 RUN touch /var/log/cron.log
 
-# Install Cron
-RUN apt-get update
-# Install prerequisite OCR soft + German language
-RUN apt-get -y install cron pdfgrep ocrmypdf tesseract-ocr-deu
+# Install Cron and prerequisite OCR soft + German language
+RUN apt-get update && \ 
+apt-get -y install \ 
+cron \
+pdfgrep \
+ocrmypdf \
+tesseract-ocr-deu
 
 # Run the command on container startup
 CMD cron && tail -f /var/log/cron.log

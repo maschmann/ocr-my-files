@@ -7,50 +7,11 @@ defaultType="unknown"
 declare -a types
 declare -A months
 
-# specific types
-# has to be an indexed array to keep order, instead of a hashmap 
-
-types=(
-    "lohnart==gehalt"
-    "meldebescheinigung==sozialversicherung"
-    "sozialversicherung==sozialversicherung"
-    "abfallgeb==abfallgebühren"
-    "grundsteuer==grundsteuer"
-    "wasser==wasser"
-    "hauptuntersuchung==hauptuntersuchung"
-    "lohnsteuerbescheinigung==lohnsteuer"
-    "bausparvertrag==kontoauszug-bausparvertrag"
-    "vorfinanzierungskredit==kontoauszug-vorfinanzierungskredit"
-    "jahreskontoauszug==kontoauszug"
-    "schornsteinfeger==kaminfeger"
-    "kontoauszug==kontoauszug"
-    "p718239363==krankenkasse"
-    "haftpflicht\-versicherung==haftpflichtversicherung"
-    "hausratversicherung==hausratversicherung"
-    "r\+v\-privatpolice==gebäudeversicherung"
-    "rechtsschutzversicherung==rechtsschutzversicherung"
-    "renteninformation==renteninformation"
-    "apcoa==parken"
-    "kraftfahrtversicherung==kfz-versicherung"
-    "rechnung==rechnung"
-    "lieferschein==rechnung"
-    "versicherung==versicherung"
-    "zeugnis==zeugnis"
-    "gehalt==gehalt"
-)
-
-months["Januar"]="01"
-months["Februar"]="02"
-months["März"]="03"
-months["April"]="04"
-months["Mai"]="05"
-months["Juni"]="06"
-months["Juli"]="07"
-months["August"]="08"
-months["September"]="09"
-months["Oktober"]="10"
-months["November"]="11"
-months["Dezember"]="12"
+if [ -f /config/rename_config ]; then
+    source /config/rename_config
+else
+    source /ocr/rename_config_default
+fi
 
 # do a Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember for regex
 monthmap=$( IFS=$'|'; echo "${!months[*]}" )
@@ -58,6 +19,7 @@ monthmap=$( IFS=$'|'; echo "${!months[*]}" )
 silent=0
 verbose=0
 test=0
+keepExtractedTime=0
 formatted=""
 touchTime=""
 
@@ -71,6 +33,7 @@ available options:
   -h                 show help
   -i <input dir>     name of consumer to start (default: ${inputDir})
   -o <output dir>    env to deploy (default: ${outputDir})
+  -k                 keep extracted time as file created time. Attention: This might be erroneus, since it uses extracted date/time!
   -v                 some verbosity
   -t                 test mode (does not move files, best used with verbosity)
 DELIMITER
@@ -121,8 +84,11 @@ function move_file() {
         else 
             mv "$file" "${createFile}"
         fi
-        # change timestamp to extracted date
-        touch -d "$touchTime" "${createFile}"
+
+        if [ 1 == "${keepExtractedTime}" ]; then
+            # change timestamp to extracted date
+            touch -d "$touchTime" "${createFile}"
+        fi
     fi
 }
 
@@ -253,7 +219,7 @@ function extract_type() {
 # read optargs
 if [ $# -gt 0 ]
 then
-  while getopts "hi:o:vt" OPTION
+  while getopts "hi:o:vtk" OPTION
   do
     case $OPTION in
       h)
@@ -271,6 +237,9 @@ then
         ;;
       t)
         test=1
+        ;;
+      k)
+        keepExtractedTime=1
         ;;
       ?)
         help # wont you pleeaaaaaaase help me

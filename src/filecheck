@@ -1,0 +1,12 @@
+#!/bin/bash
+
+CRON_FILE=/etc/cron.d/ocr-cron
+CUSTOM_FILE=/config/custom_cron
+
+# if there is a custom cron file
+if [ -f "$CUSTOM_FILE" ]; then
+    # check for differences between the existing file and custom
+    if ! diff -q "$CUSTOM_FILE" "$CRON_FILE" >/dev/null 2>&1; then
+        cp "${CUSTOM_FILE}" "${CRON_FILE}"
+    fi
+fi
