@@ -10,6 +10,7 @@ You can find it on [docker hub](https://hub.docker.com/r/maschmann/ocr-my-files)
 |-- /processed # will have files, OCR'ed and moved from incoming
 |-- /done # renamed files from processed
 |-- /raw # backupped (unchanged) files from incoming
+|-- /config # configuration files like custom_cron or rename_config
 ```
 
 ## Configuration
