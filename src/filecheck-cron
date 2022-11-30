@@ -1,1 +1,2 @@
-* * * * * root /ocr/filecheck
+* * * * * root bash /ocr/filecheck
+# empty line - needed

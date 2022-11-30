@@ -11,6 +11,7 @@ COPY [ "src/ocr-my-files", "src/rename-pdf", "src/filecheck", "src/rename_config
 
 # Give execution rights the script files
 RUN chmod +x /ocr/ocr-my-files /ocr/rename-pdf /ocr/filecheck
+RUN chmod 0644 /etc/cron.d/ocr-cron /etc/cron.d/filecheck-cron
 
 # Create the log file to be able to run tail
 RUN touch /var/log/cron.log
@@ -24,4 +25,5 @@ ocrmypdf \
 tesseract-ocr-deu
 
 # Run the command on container startup
-CMD cron && tail -f /var/log/cron.log
+# CMD cron && tail -f /var/log/cron.log
+ENTRYPOINT ["cron", "-f"]

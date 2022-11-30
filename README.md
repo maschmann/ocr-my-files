@@ -91,6 +91,7 @@ The default cron configuration is
 ```bash
 0 * * * * root /ocr/ocr-my-files -i /incoming -o /processed -b /raw -s
 * * * * * root /ocr/rename-pdf -i /processed -o /done -k
+# empty line - needed
 ```
 
 It's checking for new files to convert every full hour. It won't run double (semaphore logic) but you can provoke race conditions with a lot of large file, so I suggest not to go below 15 minute intervals. 
