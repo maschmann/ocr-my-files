@@ -1,4 +1,4 @@
-0 * * * * root /ocr/ocr-my-files -i /incoming -o /processed -b /raw -s
+0 * * * * root /ocr/ocr-my-files -i /incoming -o /processed -b /raw
 # keep renaming deactivated for now
 #* * * * * root /ocr/rename-pdf -i /processed -o /done -k
 # empty line - needed
