@@ -1,4 +1,3 @@
-* * * * * root echo working  > /proc/1/fd/1 2>/proc/1/fd/2
 */5 * * * * root /ocr/ocr-my-files -i /incoming -o /processed -b /raw  > /proc/1/fd/1 2>/proc/1/fd/2
 # enable with custom cron overwrite
 #* * * * * root /ocr/rename-pdf -i /processed -o /done -k > /proc/1/fd/1 2>/proc/1/fd/2
