@@ -69,7 +69,7 @@ function checkArgDefault()
 
 # Function for error messages
 function errorecho() {
-    if [ 1 == "${silent}" ]; then
+    if [0 == "${silent}" ]; then
         cat <<< "$@" 1>&2;
     fi
 }
@@ -126,13 +126,13 @@ function ocr_recursive() {
 
             if [ -f "${outputDir}${tmp%.*}.pdf" ]; then
                 # If the file already exist in the output directory, skip it.
-                if [ 1 == "${silent}" ]; then echo "File ${outputDir}${tmp%.*}.pdf already exists, skipping..."; fi
+                if [ 0  == "${silent}" ]; then echo "File ${outputDir}${tmp%.*}.pdf already exists, skipping..."; fi
                 continue
             fi
 
             if [ "${fileType%%,*}" == "PDF document" ]; then
                 # It's a PDF file -> OCR it
-                if [ 1 == "${silent}" ]; then echo "Processing (PDF) $i -> ${outputDir}${tmp}"; fi
+                if [ 0  == "${silent}" ]; then echo "Processing (PDF) $i -> ${outputDir}${tmp}"; fi
 
                 if ! ocrmypdf ${ocrmypdfCmdArgs} "${i}" "${outputDir}${tmp}"
                 then
@@ -140,27 +140,27 @@ function ocr_recursive() {
                     cp "${i}" "${outputDir}${tmp}"
                 fi
 
-                if [ 1 == "${silent}" ]; then
+                if [ 0  == "${silent}" ]; then
                     echo "Done"
                     echo
                 fi
                 countPDF=$((countPDF + 1))
             elif  [[ "${fileType}" = *"image data"* ]]; then
                 # It's an image -> convert to PDF and OCR it
-                if [ 1 == "${silent}" ]; then echo "Processing (image) $i -> ${outputDir}${tmp%.*}.pdf"; fi
+                if [ 0  == "${silent}" ]; then echo "Processing (image) $i -> ${outputDir}${tmp%.*}.pdf"; fi
                 fullpath="${outputDir}${tmp}"
                 tesseract "${i}" "${fullpath%.*}" ${imageConvertCmdArgs}
 
-                if [ 1 == "${silent}" ]; then
+                if [ 0  == "${silent}" ]; then
                     echo "Done"
                     echo
                 fi
                 countImage=$((countImage + 1))
             else
                 # Other file types -> just copy to output directory.
-                if [ 1 == "${silent}" ]; then echo "Copy $i -> ${outputDir}${tmp}"; fi
+                if [ 0  == "${silent}" ]; then echo "Copy $i -> ${outputDir}${tmp}"; fi
                 cp "${i}" "${outputDir}${tmp}"
-                if [ 1 == "${silent}" ]; then
+                if [ 0  == "${silent}" ]; then
                     echo "Done"
                     echo
                 fi
@@ -228,7 +228,7 @@ fi
 
 if [ ! -d "${outputDir}" ]
 then
-    if [ 1 == "${silent}" ]; then echo "The output directory does not exist -> creating ${outputDir}"; fi
+    if [ 0  == "${silent}" ]; then echo "The output directory does not exist -> creating ${outputDir}"; fi
     mkdir -p "${outputDir}"
     echo
 fi
@@ -260,7 +260,7 @@ ocr_recursive "${inputDir}"
 cleanup_inputDir
 shopt -u dotglob
 
-if [ 1 == "${silent}" ]; then
+if [ 0  == "${silent}" ]; then
     echo
     echo "Finished"
     echo "PDF files processed: ${countPDF}"

@@ -8,5 +8,7 @@ if [ -f "$CUSTOM_FILE" ]; then
     # check for differences between the existing file and custom
     if ! diff -q "$CUSTOM_FILE" "$CRON_FILE" >/dev/null 2>&1; then
         cp "${CUSTOM_FILE}" "${CRON_FILE}"
+        chwon root ${CRON_FILE} && chmod 644 ${CRON_FILE}
+        echo "successfully replaced ${CRON_FILE} with ${CUSTOM_FILE} contents" > /proc/1/fd/1 2>/proc/1/fd/2
     fi
 fi

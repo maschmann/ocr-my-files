@@ -18,11 +18,15 @@ You can find it on [docker hub](https://hub.docker.com/r/maschmann/ocr-my-files)
 Currently the only configuration you can add, is a folder mount.
 Use following docker command to start with all configured folders.
 
+### docker native
+
 ```bash
 $docker pull maschmann/ocr-my-files
 $docker run -d \
   -it \
   --name ocr-my-files \
+  --mount type=bind,source=/etc/timezone, target=/etc/timezone \
+  --mount type=bind,source=/etc/localtime, target=/etc/timezone \
   --mount type=bind,source="$(pwd)"/incoming,target=/incoming \
   --mount type=bind,source="$(pwd)"/processed,target=/processed \
   --mount type=bind,source="$(pwd)"/done,target=/done \
@@ -31,7 +35,28 @@ $docker run -d \
   maschmann/ocr-my-files
 ```
 
-Put a rename_config file in your config directory, to override the defaults, specified like this:
+### docker compose
+
+```bash
+# docker-compose.yml
+services:
+  ocr-my-files:
+    image: maschmann/ocr-my-files
+    container_name: ocr-my-files
+    volumes:
+      - "/etc/timezone:/etc/timezone:ro"
+      - "/etc/localtime:/etc/localtime:ro"
+      - "${LOCAL_BASE_PATH}/incoming:/incoming"
+      - "${LOCAL_BASE_PATH}/processed:/processed"
+      - "${LOCAL_BASE_PATH}/done:/done"
+      - "${LOCAL_BASE_PATH}/raw:/raw"
+      - "${LOCAL_BASE_PATH}/ocr-my-files:/config"
+    restart: unless-stopped
+```
+
+### override-configs
+
+Put a ```rename_config``` file in your config directory, to override the defaults, specified like this:
 
 ```bash
 # rename_config_default
@@ -90,10 +115,19 @@ And make sure to add both definitions, since there is no selective overwriting.
 The default cron configuration is
 
 ```bash
-0 * * * * root /ocr/ocr-my-files -i /incoming -o /processed -b /raw -s
-* * * * * root /ocr/rename-pdf -i /processed -o /done -k
+*/5 * * * * root /ocr/ocr-my-files -i /incoming -o /processed -b /raw  > /proc/1/fd/1 2>/proc/1/fd/2
+# enable with custom cron overwrite
+#* * * * * root /ocr/rename-pdf -i /processed -o /done -k > /proc/1/fd/1 2>/proc/1/fd/2
 # empty line - needed
 ```
 
-It's checking for new files to convert every full hour. It won't run double (semaphore logic) but you can provoke race conditions with a lot of large file, so I suggest not to go below 15 minute intervals. 
+It's checking for new files to convert every five minutes. It won't run double (semaphore logic) but you can provoke race conditions with a lot of large file, so I suggest not to go below 15 minute intervals. 
 It is possible to override the cron file with a custom one by supplying a ```custom_cron``` file in your config mount.
+
+## custom cron file
+
+You can now also replace the default cron with a custom one, which will be copied to the internal cron.d automatically.
+
+Use the same format as seen above and feel free to play with the settings.
+
+Just put a ```custom_cron``` file into your config directory (see mounts above).
